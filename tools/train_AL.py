@@ -1,9 +1,14 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import argparse
 import numpy as np
 import pdb
 import math
+import os
+import argparse
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 from torchvision import datasets, models, transforms
 import torchvision.models as models
 from torch.utils import data
@@ -16,6 +21,8 @@ import os
 import argparse
 
 from data.ucm_dataset import UCMDataSet
+from data.deepglobe import DeepGlobeDataSet
+
 import modAL
 from modAL.models import ActiveLearner
 from scipy.special import softmax
@@ -43,10 +50,19 @@ def create_model_dict():
     model_dict['res101'] = res101
     return model_dict
 
+def create_dataset_dict():
+    dataset_dict = dict()
+    
+    dataset_dict['UCM'] = UCMDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
+                                                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
+    dataset_dict['deepglobe'] = DeepGlobeDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
+                                                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
+
+
 #### Argument Parser
 def get_arguments():
     parser = argparse.ArgumentParser(description="Arguments")
-    parser.add_argument("--dataset", type=str, default="UCM", help="UCM/deepglobe") 
+    parser.add_argument("--dataset_name", type=str, default="UCM", help="UCM/deepglobe") 
     parser.add_argument("--query-strategy", type=str, default="uncertainty",
                                         help="uncertainty, margin, entropy sampling")
     parser.add_argument("--learning-rate", type=float, default=0.00001,
@@ -90,20 +106,22 @@ def get_arguments():
 
 ALPHA = float(args.alpha)
 BETA = float(args.beta)
-dataset = args.dataset
+dataset_name = args.dataset_name
 model_name = args.model_name
 N_total = args.N_total
 num_classes = args.num_classes
 
 model_dict = create_model_dict()
-
+dataset_dict = create_dataset_dict()
 
 initial_pool_size = ALPHA * args.labeled_ratio * N_total
 
-if dataset=='UCM': 
+if dataset_name=='UCM': 
     names_array = ['agricultural', 'airplane', 'baseballdiamond', 'beach', 'buildings', 'chapparal', 'denseresidential','forest', 'freeway', 'golfcourse', 'harbor', 'intersection', 'mediumresidential', 'mobilehomepark', 'overpass', 'parkinglot', 'river', 'runway', 'sparseresidential', 'storagetanks','tenniscourt']
-else:
+elif dataset_name=="deepglobe":
     names_array = ['urban_land','agriculture_land','rangeland','forest','water','barren']
+else:
+   raise ValueError('Currently this code only supports UCM and deepglobe')
 
 def makedirs(dirs):
     if not os.path.exists(dirs):
@@ -113,9 +131,9 @@ h, w = map(int, args.input_size.split(','))
 input_size = (h, w)
 
 #### Dataloader Object
-train_dataset = UCMDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
+train_dataset = dataset_dict[dataset_name](args.train_data_dir, args.train_data_list, crop_size=input_size,
                                 scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
-test_dataset = UCMDataSet(args.test_data_dir, args.test_data_list, crop_size=input_size,
+test_dataset = dataset_dict[dataset_name](args.test_data_dir, args.test_data_list, crop_size=input_size,
                                                 scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
 
 trainloader = data.DataLoader(train_dataset,
@@ -161,9 +179,9 @@ net = NeuralNetClassifier(
 )
 #### Train the network
 
-active_ucm_dataloader = data.DataLoader(train_dataset,
+active_dataloader = data.DataLoader(train_dataset,
                         batch_size=N_total, shuffle=True, num_workers=0, pin_memory=True)#1679
-(X_train,name), y_train = next(iter(active_ucm_dataloader))
+(X_train,name), y_train = next(iter(active_dataloader))
 name=np.asarray(name)
 
 #### Split X and y into seed and pool
