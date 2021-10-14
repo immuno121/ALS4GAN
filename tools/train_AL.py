@@ -34,9 +34,7 @@ INPUT_SIZE = '320, 320'
 PARENT_PATH = '/home/dg777/project/Satellite_Images'
 
 
-TRAIN_DATA_DIRECTORY = '/home/dg777/project/Satellite_Images'
 TRAIN_DATA_LIST_PATH = '/home/dg777/project/Satellite_Images/UCMImageSets/train.txt' # TODO: MAKE NEW TEXT FILE
-TEST_DATA_DIRECTORY = '/home/dg777/project/Satellite_Images'
 TEST_DATA_LIST_PATH = '/home/dg777/project/Satellite_Images/UCMImageSets/test.txt' # TODO: MAKE NEW TEXT FILE
 
 def create_model_dict():
@@ -131,14 +129,11 @@ h, w = map(int, args.input_size.split(','))
 input_size = (h, w)
 
 #### Dataloader Object
-train_dataset = dataset_dict[dataset_name](args.train_data_dir, args.train_data_list, crop_size=input_size,
-                                scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
-test_dataset = dataset_dict[dataset_name](args.test_data_dir, args.test_data_list, crop_size=input_size,
-                                                scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
+train_dataset = dataset_dict[dataset_name]
+test_dataset = dataset_dict[dataset_name]
 
 trainloader = data.DataLoader(train_dataset,
                                 batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
-
 testloader = data.DataLoader(test_dataset,
                                 batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
@@ -181,7 +176,7 @@ net = NeuralNetClassifier(
 
 active_dataloader = data.DataLoader(train_dataset,
                         batch_size=N_total, shuffle=True, num_workers=0, pin_memory=True)#1679
-(X_train,name), y_train = next(iter(active_dataloader))
+(X_train,name), y_train, _, _, _ = next(iter(active_dataloader))
 name=np.asarray(name)
 
 #### Split X and y into seed and pool
