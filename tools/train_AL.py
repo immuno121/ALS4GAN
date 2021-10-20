@@ -3,7 +3,6 @@ import numpy as np
 import pdb
 import math
 import os
-import argparse
 
 import torch
 import torch.nn as nn
@@ -17,22 +16,18 @@ from skorch import NeuralNetClassifier
 from skorch.helper import predefined_split
 from skorch.callbacks import LRScheduler, Checkpoint
 
-import os
-import argparse
-
-from data.ucm_dataset import UCMDataSet
-from data.deepglobe import DeepGlobeDataSet
-
 import modAL
 from modAL.models import ActiveLearner
 from scipy.special import softmax
+
+from data.ucm import UCMDataSet
+from data.deepglobe import DeepGlobeDataSet
 
 torch.manual_seed(360);
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 INPUT_SIZE = '320, 320'
 
 PARENT_PATH = '/home/dg777/project/Satellite_Images'
-
 
 TRAIN_DATA_LIST_PATH = '/home/dg777/project/Satellite_Images/UCMImageSets/train.txt' # TODO: MAKE NEW TEXT FILE
 TEST_DATA_LIST_PATH = '/home/dg777/project/Satellite_Images/UCMImageSets/test.txt' # TODO: MAKE NEW TEXT FILE
@@ -100,7 +95,7 @@ def get_arguments():
     return parser.parse_args()
 
 
- args = get_arguments()
+args = get_arguments()
 
 ALPHA = float(args.alpha)
 BETA = float(args.beta)
