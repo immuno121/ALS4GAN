@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import json
 import pdb
 import math
 import os
@@ -27,12 +28,7 @@ torch.manual_seed(360);
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 INPUT_SIZE = '320, 320'
 
-PARENT_PATH = '/home/dg777/project/Satellite_Images'
-
-TRAIN_DATA_LIST_PATH = '/home/dg777/project/Satellite_Images/UCMImageSets/train.txt' # TODO: MAKE NEW TEXT FILE
-TEST_DATA_LIST_PATH = '/home/dg777/project/Satellite_Images/UCMImageSets/test.txt' # TODO: MAKE NEW TEXT FILE
-
-def create_model_dict():
+def create_model_dict(input_size):
 
     model_dict = dict()
     vgg16 = models.vgg16(pretrained=True, progress=True)
@@ -43,20 +39,27 @@ def create_model_dict():
     model_dict['res101'] = res101
     return model_dict
 
-def create_dataset_dict():
+def create_dataset_dict(input_size):
     dataset_dict = dict()
-    
-    dataset_dict['UCM'] = UCMDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
-                                                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
-    dataset_dict['deepglobe'] = DeepGlobeDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
-                                                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN)
+    if args.dataset_name=='UCM': 
+        dataset_dict['UCM'] = UCMDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
+                                                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN,
+                                                    module='AL')
+    else:
+        dataset_dict['deepglobe'] = DeepGlobeDataSet(args.train_data_dir, args.train_data_list, crop_size=input_size,
+                                                    scale=args.random_scale, mirror=args.random_mirror, mean=IMG_MEAN,
+                                                    module='AL')
+    return dataset_dict
 
+def makedirs(dirs):
+    if not os.path.exists(dirs):
+        os.makedirs(dirs)
 
 #### Argument Parser
 def get_arguments():
     parser = argparse.ArgumentParser(description="Arguments")
-    parser.add_argument("--dataset_name", type=str, default="UCM", help="UCM/deepglobe") 
-    parser.add_argument("--query-strategy", type=str, default="uncertainty",
+    parser.add_argument("--dataset-name", type=str, default="UCM", help="UCM/deepglobe") 
+    parser.add_argument("--query-strategy", type=str, default="margin",
                                         help="uncertainty, margin, entropy sampling")
     parser.add_argument("--learning-rate", type=float, default=0.00001,
                                             help="Learning Rate")
@@ -74,23 +77,19 @@ def get_arguments():
                                             help="Whether to randomly mirror the inputs during the training.")
     parser.add_argument("--input-size", type=str, default=INPUT_SIZE,
                                             help="Comma-separated string with height and width of images.")
-    parser.add_argument("--train-data-dir", type=str, default=TRAIN_DATA_DIRECTORY,
+    parser.add_argument("--train-data-dir", type=str, default="./train",
                                             help="Path to the directory containing the PASCAL VOC dataset.")
-    parser.add_argument("--train-data-list", type=str, default=TRAIN_DATA_LIST_PATH,
+    parser.add_argument("--train-data-list", type=str, default="./train/image_list.txt",
                                             help="Path to the file listing the images in the dataset.")
-    parser.add_argument("--test-data-dir", type=str, default=TEST_DATA_DIRECTORY,
-                                            help="Path to the directory containing the PASCAL VOC dataset.")
-    parser.add_argument("--test-data-list", type=str, default=TEST_DATA_LIST_PATH,
-                                            help="Path to the file listing the images in the dataset.") 
-    parser.add_argument("--labeled-ratio", type=str, default="0.05",
+    parser.add_argument("--labeled-ratio", type=float, default=0.05,
                                             help="labeled ratio")
-    parser.add_argument("--alpha", type=str, default="0.1",
+    parser.add_argument("--alpha", type=float, default=0.1,
                                             help="alpha for initial pool")
-    parser.add_argument("--beta", type=str, default="0.5",
+    parser.add_argument("--beta", type=float, default=0.5,
                                             help="beta for number of images to learn on")
-    parser.add_argument("--N_total", type=int, default="1679",
-                                            help="Total Number of samples")
-    parser.add_argument("--model", type=str, default="res50", help="vgg16/res50/res101")
+    parser.add_argument("--N_total", type=int, default=1679,
+                    help="Total Number of samples(UCM: 1679, DeepGlobe: 642")
+    parser.add_argument("--model-name", type=str, default="res50", help="vgg16/res50/res101")
     parser.add_argument("--num-classes", type=int, default=21, help="UCM: 21, deepglobe: 6")
     return parser.parse_args()
 
@@ -104,36 +103,42 @@ model_name = args.model_name
 N_total = args.N_total
 num_classes = args.num_classes
 
-model_dict = create_model_dict()
-dataset_dict = create_dataset_dict()
 
-initial_pool_size = ALPHA * args.labeled_ratio * N_total
+if args.alpha<0 or args.alpha>1:
+    raise ValueError('alpha should be between 0 and 1')
+if args.beta<0 or args.beta>1:
+    raise ValueError('beta should be between 0 and 1')
 
 if dataset_name=='UCM': 
+    if num_classes!=21:
+        raise ValueError('number of classes should be equal to 21 when dataset=UCM')   
+    if N_total!=1679:
+        raise ValueError('total number of samples for UCM should be 1679')
     names_array = ['agricultural', 'airplane', 'baseballdiamond', 'beach', 'buildings', 'chapparal', 'denseresidential','forest', 'freeway', 'golfcourse', 'harbor', 'intersection', 'mediumresidential', 'mobilehomepark', 'overpass', 'parkinglot', 'river', 'runway', 'sparseresidential', 'storagetanks','tenniscourt']
 elif dataset_name=="deepglobe":
+    if num_classes!=6:
+        raise ValueError('number of classes should be equal to 6 when dataset=DeepGlobe')
+    if N_total!=642:
+        raise ValueError('otal number of samples for DeepGlobe should be 642')
     names_array = ['urban_land','agriculture_land','rangeland','forest','water','barren']
 else:
    raise ValueError('Currently this code only supports UCM and deepglobe')
 
-def makedirs(dirs):
-    if not os.path.exists(dirs):
-        os.makedirs(dirs)
+if model_name not in ['vgg16','res50','res101']:
+    raise NotImplementedError('model should be either vgg16, res50, or res101')   
+
 
 h, w = map(int, args.input_size.split(','))
 input_size = (h, w)
 
-#### Dataloader Object
-train_dataset = dataset_dict[dataset_name]
-test_dataset = dataset_dict[dataset_name]
+#create dictionary for model and dataset
+model_dict = create_model_dict(input_size)
+dataset_dict = create_dataset_dict(input_size)
 
-trainloader = data.DataLoader(train_dataset,
-                                batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
-testloader = data.DataLoader(test_dataset,
-                                batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
+#Dataloader Object
+train_dataset = dataset_dict[dataset_name]
 
 names=[]
-
 
 class ImageClassifier(nn.Module):
     def __init__(self):
@@ -150,12 +155,11 @@ class ImageClassifier(nn.Module):
 
 model = ImageClassifier()
 
-#### Model Callbacks
+#Model Callbacks
 lrscheduler = LRScheduler(policy='StepLR', step_size=7, gamma=0.1)
-
 checkpoint = Checkpoint(dirname = 'exp', f_params='best_model.pt', monitor='train_loss_best')
 
-#### Neural Net Classifier
+#Define Neural Net Classifier
 net = NeuralNetClassifier(
     module=model,
     criterion=nn.CrossEntropyLoss,
@@ -167,75 +171,75 @@ net = NeuralNetClassifier(
     train_split=None,
     device=args.device # comment to train on cpu
 )
-#### Train the network
 
-active_dataloader = data.DataLoader(train_dataset,
+#Dataloader Object
+dataset = dataset_dict[dataset_name]
+active_dataloader = data.DataLoader(dataset,
                         batch_size=N_total, shuffle=True, num_workers=0, pin_memory=True)#1679
-(X_train,name), y_train, _, _, _ = next(iter(active_dataloader))
+X_data, y_data, _, name, _ = next(iter(active_dataloader))
 name=np.asarray(name)
 
-#### Split X and y into seed and pool
-
-dir_name = args.query_strategy
-makedirs(dir_name)
-
-# assemble initial data
-np.random.seed(1234) 
-n_initial = initial_pool_dict[args.labeled_ratio]
-print("Initial pool size = ", n_initial)
-initial_idx = np.random.choice(range(len(X_train)), size=n_initial, replace=False)
+#Assemble initial data
+'''
+Assemble initial data:
+1. Sample N_inital(=inital pool size) samples randomly from thee entire unlabeled pool(X_pool)
+2. Remove the inital samples from X_pool
+3. Query labels for these N_inital samples from the oracle
+4. Train the Image Classifier
+As per Algorithm:1 in the paper,
+total_labeled_samples_to_query(X_L)  = labeled_ratio*total_num_samples
+inital_pool_size = alpha * X_L
+'''
+np.random.seed(1234)
+initial_pool_size = ALPHA * args.labeled_ratio * N_total
+print("Initial pool size = ", initial_pool_size)
+initial_idx = np.random.choice(range(len(X_train)), size=initial_pool_size, replace=False)
 selected_names = list(name[initial_idx])
-print(selected_names, 'selected names')
 
-X_initial = X_train[initial_idx]
-y_initial = y_train[initial_idx]
+X_initial = X_data[initial_idx]
+y_initial = y_data[initial_idx]
 names_initial = name[initial_idx]
 
-# generate the pool
-# remove the initial data from the training dataset
-X_pool = np.delete(X_train, initial_idx, axis=0)
+'''
+Generate the pool
+Remove the initial data from the training dataset
+'''
+X_pool = np.delete(X_data, initial_idx, axis=0)
 names_pool = np.delete(name, initial_idx, axis=0)
-y_pool = np.delete(y_train, initial_idx, axis=0)
+y_pool = np.delete(y_data, initial_idx, axis=0)
 
-#### Active Learner
+#Active Learner
 
-# QUERY strategy 1
-# initialize ActiveLearner
-if args.query_strategy == "uncertainty":
-    learner = ActiveLearner(estimator=net,
-                            query_strategy=modAL.uncertainty.uncertainty_sampling,
-                            X_training=X_initial, y_training=y_initial,
-            )
-# QUERY strategy 2
-elif args.query_strategy == "margin":
+#Query strategy 1
+if args.query_strategy == "margin":
     learner = ActiveLearner(estimator=net,
                            query_strategy=modAL.uncertainty.margin_sampling,
                            X_training=X_initial, y_training=y_initial,
                            )
-# QUERY strategy 3
+#Query strategy 2
 elif args.query_strategy == "entropy":
     learner = ActiveLearner(estimator=net,
                             query_strategy=modAL.uncertainty.entropy_sampling,
                             X_training=X_initial, y_training=y_initial,
                             )
+else:
+    raise NotImplementedError("AL sampling strategy should be either margin or query")
 
 prediction_probabilities = []
 
 '''
-n_initial is 50% of the labeled ratio
-hence we want a total of 2*n_inital number of examples for each labeled ratio from AL to feed into s4gan
-target = 2*n_inital
+target(total_labeled_samples) = labeled_ratio * total_num_samples (In this paper, we expierment with labeled_ratio of: 0.02, 0.05, 0.125)
+N_inital = alpha*target
 
-for each query, we are querying 0.1*n_inital samples
-query_samples_per_iter = np.floor(0.1*n_inital)
-
+for each query, we are querying beta*N_inital
+query_samples_per_iter = np.ceil(beta*n_inital)
 
 n_queries  = target/query_samples_per_iter
 '''
-print("n_initial = ", n_initial)
-target = math.ceil(float(args.labeled_ratio) * N_total) #10*n_initial # 11 - 0.05, 10 - 0.125
+print("n_initial = ", initial_pool_size)
+target = math.ceil(float(args.labeled_ratio) * N_total)
 print("target = ", target)
-query_samples_per_iter = int(np.ceil(BETA*n_initial))
+query_samples_per_iter = int(np.ceil(BETA*initial_pool_size))
 print("query_samples_per_iter = ", query_samples_per_iter)
 n_queries  = int(np.ceil(target/query_samples_per_iter))
 print("Number of Queries: ", n_queries)
@@ -263,7 +267,12 @@ for idx in range(n_queries):
     y_pool = np.delete(y_pool, query_idx, axis=0)
     names_pool = np.delete(names_pool, query_idx, axis=0)
 
-# save the name list and the prediction list:
+
+#save the name list and the prediction list:
+
+dir_name = args.query_strategy
+makedirs(dir_name)
+
 names_arr = np.array(names[:target])
 prediction_prob_arr = np.array(prediction_probabilities[:target])
 
