@@ -26,10 +26,10 @@ class DeepGlobeDataSet(data.Dataset):
         
 
         for name in self.img_ids:
-            img_file = osp.join(self.root, "DeepGlobe_Images/%s.tif" % name)
+            img_file = osp.join(self.root, "DeepGlobe_Images/%s_sat.jpg" % name)
             
             if self.module == 's4gan':
-                label_file = osp.join(self.root, "DeepGlobe_Labels/%s.png" % name)
+                label_file = osp.join(self.root, "DeepGlobe_Labels/%s_mask.png" % name)
             else:
                 class_id = self.class_map[name]
                 label_file = self.class_mappings[class_id]
