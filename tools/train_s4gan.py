@@ -490,18 +490,15 @@ def main():
     optimizer_D.step()
     scheduler.step(epoch = i_iter)
     
-    print('iter = {0:8d}/{1:8d}, loss_ce = {2:.3f}, loss_fm = {3:.3f}, loss_S = {4:.3f}, loss_D = {5:.3f}'.format(i_iter,
-                                                                                                              args.num_steps,
-                                                                                                              loss_ce_value,
-                                                                                                              loss_fm_value,
-                                                                                                              loss_S_value,
-                                                                                                              loss_D_value))
+    print('iter = {0:8d}/{1:8d}, loss_ce = {2:.3f}, loss_fm = {3:.3f}, loss_S = {4:.3f}, loss_D = {5:.3f}'. \
+          format(i_iter,args.num_steps,loss_ce_value,loss_fm_value,loss_S_value,loss_D_value))
+      
     if i_iter >= args.num_steps - 1:
       print('save model ...')
       torch.save(model.module.state_dict(), os.path.join(checkpoint_dir, 'checkpoint' + str(args.num_steps) + '.pth'))
       torch.save(model_D.module.state_dict(),os.path.join(checkpoint_dir, 'checkpoint' + str(args.num_steps) + '_D.pth'))
       break
-    
+  
     if i_iter % args.save_pred_every == 0 and i_iter != 0:
       print('saving checkpoint  ...')
       torch.save(model.module.state_dict(), os.path.join(checkpoint_dir, 'checkpoint' + str(i_iter) + '.pth'))
