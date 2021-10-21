@@ -1,18 +1,13 @@
-import os
-import os.path as osp
+import cv2
 import numpy as np
 import random
-#import matplotlib.pyplot as plt
-import collections
-import torch
-import torchvision
-import cv2
+import os.path as osp
 from torch.utils import data
 from PIL import Image
 import re
 
 class UCMDataSet(data.Dataset):
-    def __init__(self, root, list_path, module, max_iters=None, crop_size=(321, 321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255):
+    def __init__(self, root, list_path, module, crop_size=(320, 320), mean=(128, 128, 128), scale=False, mirror=False, ignore_label=255):
 
         self.module = module
         self.root = root
@@ -24,12 +19,12 @@ class UCMDataSet(data.Dataset):
         self.is_mirror = mirror
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
 
-        if not max_iters==None:
-            self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
         
         self.files = []    
         self.class_map = {'agricultural':0, 'airplane':1, 'baseballdiamond':2, 'beach':3, 'buildings':4, 'chaparral':5,
-                        'denseresidential':6, 'forest':7, 'freeway':8, 'golfcourse':9, 'harbor':10, 'intersection':11,                         'mediumresidential':12, 'mobilehomepark':13, 'overpass':14, 'parkinglot':15, 'river':16,                               'runway':17,'sparseresidential':18, 'storagetanks':19, 'tenniscourt':20}
+                        'denseresidential':6, 'forest':7, 'freeway':8, 'golfcourse':9, 'harbor':10, 'intersection':11,
+                        'mediumresidential':12, 'mobilehomepark':13, 'overpass':14, 'parkinglot':15, 'river':16,
+                        'runway':17,'sparseresidential':18, 'storagetanks':19, 'tenniscourt':20}
        
         for name in self.img_ids:
             img_file = osp.join(self.root, "UCMerced_Images/%s.tif" % name)

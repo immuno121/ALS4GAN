@@ -13,10 +13,11 @@ from torch.autograd import Variable
 
 from model import *
 from model.discriminator import s4GAN_discriminator
-from utils.loss import CrossEntropy2d
+
 from data.ucm_dataset import UCMDataSet
 from data.deepglobe import DeepGlobeDataSet
-from data.augmentations import *
+
+from utils.loss import CrossEntropy2d
 from utils.lr_scheduler import PolynomialLR
 
 start = timeit.default_timer()
@@ -40,7 +41,6 @@ NUM_WORKERS = 0
 RANDOM_SEED = 5000
 LAMBDA_FM = 0.1
 LAMBDA_ST = 1.0
-THRESHOLD_ST = 0.3  # 0.6
 EXP_OUTPUT_DIR = './s4gan_files'
 
 def get_arguments():
@@ -51,8 +51,6 @@ def get_arguments():
   """
   parser = argparse.ArgumentParser(description = "DeepLab-ResNet Network")
   parser.add_argument("--dataset", type = str, required = True,
-                      help = "dataset to be used")
-  parser.add_argument("--save_viz", type = bool, default = False, action = "store_true",
                       help = "dataset to be used")
   parser.add_argument("--labeled-ratio", type = float, required = True,
                       help = "ratio of the labeled data to full dataset")
@@ -68,19 +66,17 @@ def get_arguments():
                       help = "Path to the file listing the images in the dataset.")
   parser.add_argument("--active-learning", type = bool, default = False, action = "store_true",
                       help = "whether to use active learning to select labeled examples")
-  parser.add_argument("--restore-from", type = str, required = True,
-                      help = "Where restore model parameters from.")
-  parser.add_argument("--model", type = str, default = MODEL,
-                      help = "available options : DeepLab")
   parser.add_argument("--active_image_list_path", type = str, default = 'default',
                       help = "path to active learning list of images")
-  
-  parser.add_argument("--batch-size", type = int, default = BATCH_SIZE,
-                      help = "Number of images sent to the network in one step.")
-  parser.add_argument("--num-workers", type = int, default = NUM_WORKERS,
-                      help = "number of workers for multithread dataloading.")
+  parser.add_argument("--restore-from", type = str, required = True,
+                      help = "Where restore model parameters from.")
+  parser.add_argument("--save_viz", type = bool, default = False, action = "store_true",
+                      help = "dataset to be used")
+  parser.add_argument("--generator_viz_dir", type = str, default = './visualization')
   parser.add_argument("--num-steps", type = int, default = NUM_STEPS,
                       help = "Number of iterations.")
+  parser.add_argument("--batch-size", type = int, default = BATCH_SIZE,
+                      help = "Number of images sent to the network in one step.")
   parser.add_argument("--input-size", type = str, default = INPUT_SIZE,
                       help = "Comma-separated string with height and width of images.")
   parser.add_argument("--learning-rate", type = float, default = LEARNING_RATE,
@@ -228,6 +224,7 @@ def main():
   cudnn.enabled = True
   cuda = args.cuda
   device = get_device(cuda)
+  cudnn.benchmark = True
   
   # create network
   model = DeepLabV2_ResNet101_MSC(n_classes = args.num_classes)
@@ -245,7 +242,6 @@ def main():
   model = model.to(device)
   model.train()
   
-  cudnn.benchmark = True
   
   # init D
   model_D = s4GAN_discriminator(num_classes = args.num_classes, dataset = args.dataset)
@@ -257,13 +253,14 @@ def main():
   
   
   if args.dataset == 'ucm':
-    train_dataset = UCMDataSet(args.data_dir, args.data_list, crop_size = input_size,
+    train_dataset = UCMDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size,
                                scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
   
   elif args.dataset == 'deepglobe':
-    train_dataset = DeepGlobeDataSet(args.data_dir, args.data_list, crop_size = input_size,
+    train_dataset = DeepGlobeDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size,
                                      scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
-  
+  else:
+    raise NotImplementedError('only ucm and deepglobe datasets are supported currently')
   train_dataset_size = len(train_dataset)
   print('dataset size: ', train_dataset_size)
   
@@ -271,11 +268,9 @@ def main():
     trainloader = data.DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, num_workers = 0, pin_memory = True)
     trainloader_gt = data.DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, num_workers = 0, pin_memory = True)
     trainloader_remain = data.DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, num_workers = 0, pin_memory = True)
-    trainloader_remain_iter = iter(trainloader_remain)
-  
   
   elif args.active_learning:
-    active_img_names = [i_id.strip() for i_id in open(args.active_image_list_path)]
+    active_img_names = np.load(args.active_image_list_path)
     all_img_names = [i_id.strip() for i_id in open(args.data_list)]
     active_img_names = np.array(active_img_names)
     all_img_names = np.array(all_img_names)
@@ -285,8 +280,7 @@ def main():
     Returns a boolean array of the same shape as element that is True
     where an element of element is in test_elements and False otherwise.
     '''
-    active_ids = np.where(
-      np.isin(all_img_names, active_img_names))  # np.isin will return a boolean array of size all_image_names.
+    active_ids = np.where(np.isin(all_img_names, active_img_names))  #np.isin will return a boolean array of size all_image_names.
     active_ids = active_ids[0]
    
     train_ids = np.arange(train_dataset_size)
@@ -314,11 +308,12 @@ def main():
     trainloader_remain = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_remain_sampler, num_workers = 0,pin_memory = True)
     trainloader_gt = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_gt_sampler, num_workers = 0,pin_memory = True)
     
-    trainloader_remain_iter = iter(trainloader_remain)
+  
     
   trainloader_iter = iter(trainloader)
+  trainloader_remain_iter = iter(trainloader_remain)
   trainloader_gt_iter = iter(trainloader_gt)
-  
+ 
   # optimizer for segmentation network
   
   optimizer = torch.optim.SGD(
@@ -421,9 +416,7 @@ def main():
           index = indexes[i]
           name = names[index]
           name = name + '_iter_' + str(i_iter)
-          print(name)
           gen_viz = labels_sel[i]
-          # label_selected = labels_sel(i,:,:)
           filename = os.path.join(generator_viz_dir, name + ".npy")
           np.save(filename, gen_viz.cpu().numpy())
     

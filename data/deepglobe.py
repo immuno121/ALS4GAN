@@ -1,20 +1,14 @@
-import os
-import os.path as osp
+import cv2
 import numpy as np
 import json
 import random
-#import matplotlib.pyplot as plt
-import collections
-import torch
-import torchvision
-import cv2
+import os.path as osp
 from torch.utils import data
-from PIL import Image
-import re
+
 
 
 class DeepGlobeDataSet(data.Dataset):
-    def __init__(self, root, list_path, module, max_iters=None, crop_size=(321, 321), mean=(128, 128, 128), scale=True, mirror=True, ignore_label=255):
+    def __init__(self, root, list_path, module, crop_size=(320, 320), mean=(128, 128, 128), scale=False, mirror=False, ignore_label=255):
 
         self.module = module
         self.root = root
@@ -25,10 +19,6 @@ class DeepGlobeDataSet(data.Dataset):
         self.mean = mean
         self.is_mirror = mirror
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
-
-        if not max_iters==None:
-            self.img_ids = self.img_ids * int(np.ceil(float(max_iters) / len(self.img_ids)))
-        
         self.files = []    
         
         self.class_map = json.load(open('/home/dg777/project/Satellite_Images/DeepGlobeImageSets/class_map.json','r'))
@@ -99,7 +89,7 @@ class DeepGlobeDataSet(data.Dataset):
     def __getitem__(self, index):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], -1)
-        image = cv2.resize(image, (256,256), interpolation=cv2.INTER_CUBIC)
+        image = cv2.resize(image, (320,320), interpolation=cv2.INTER_CUBIC)
      
         if self.module == 's4gan':
             label = cv2.imread(datafiles["label"])
@@ -120,4 +110,6 @@ class DeepGlobeDataSet(data.Dataset):
         if self.is_mirror:
             flip = np.random.choice(2) * 2 - 1
             image = image[:, :, ::flip]
+            if self.module == 's4gan':
+                label = label[:, ::flip]
         return image.copy(), label.copy(), np.array(size), name, index
