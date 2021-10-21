@@ -23,7 +23,6 @@ start = timeit.default_timer()
 
 IMG_MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype = np.float32)
 
-MODEL = 'DeepLab'
 INPUT_SIZE = '320,320'
 
 #Hyperparameters
@@ -53,6 +52,8 @@ def get_arguments():
   parser = argparse.ArgumentParser(description = "DeepLab-ResNet Network")
   parser.add_argument("--dataset", type = str, required = True,
                       help = "dataset to be used")
+  parser.add_argument("--save_viz", type = bool, default = False, action = "store_true",
+                      help = "dataset to be used")
   parser.add_argument("--labeled-ratio", type = float, required = True,
                       help = "ratio of the labeled data to full dataset")
   parser.add_argument("--threshold-st", type = float, required = True,
@@ -61,24 +62,19 @@ def get_arguments():
                       help = "label value to ignored for loss calculation")
   parser.add_argument("--num-classes", type = int, required = True,
                       help = "Number of classes to predict (including background).")
-  parser.add_argument("--save-s4gan-names", type = bool, default = False, action = "store_true",
-                      help = "save s4gan names")
   parser.add_argument("--data-dir", type = str, required = True,
                       help = "Path to the directory containing the PASCAL VOC dataset.")
   parser.add_argument("--data-list", type = str, required = True,
                       help = "Path to the file listing the images in the dataset.")
-  parser.add_argument("--dataset-split", type = str, default = "train",
-                      help = "train,val,test,subset")
-  parser.add_argument("--exp-id", type = str, default = "default",
-                      help = "unique id to identify all files of an experiment:weights,viz,logs,etc.")
   parser.add_argument("--active-learning", type = bool, default = False, action = "store_true",
                       help = "whether to use active learning to select labeled examples")
-  parser.add_argument("--sampling-type", type = str, required = True,
-                      help = "sampling technique to use")
   parser.add_argument("--restore-from", type = str, required = True,
                       help = "Where restore model parameters from.")
   parser.add_argument("--model", type = str, default = MODEL,
-                      help = "available options : DeepLab/DRN")
+                      help = "available options : DeepLab")
+  parser.add_argument("--active_image_list_path", type = str, default = 'default',
+                      help = "path to active learning list of images")
+  
   parser.add_argument("--batch-size", type = int, default = BATCH_SIZE,
                       help = "Number of images sent to the network in one step.")
   parser.add_argument("--num-workers", type = int, default = NUM_WORKERS,
@@ -113,10 +109,8 @@ def get_arguments():
                       help = "Whether to randomly mirror the inputs during the training.")
   parser.add_argument("--random-scale", action = "store_true", default = False,
                       help = "Whether to randomly scale the inputs during the training.")
-  parser.add_argument("--cuda", type = bool, default = True, action = "store_true"
-                      help = "choose gpu device.")
-  parser.add_argument("--active-image-path", type = str, default = '',
-                      help = "path to active learning list of images")
+  parser.add_argument("--cuda", type = bool, default = True, action = "store_true", help = "choose gpu device.")
+
   return parser.parse_args()
 
 
@@ -273,14 +267,6 @@ def main():
   train_dataset_size = len(train_dataset)
   print('dataset size: ', train_dataset_size)
   
-  if args.save_s4gan_names:
-    train_ids = np.arange(train_dataset_size)
-    np.random.shuffle(train_ids)
-    img_names = [i_id.strip() for i_id in open(args.data_list)]
-    img_names = np.array(img_names)
-    s4gan_names = img_names[train_ids]
-    np.save('s4gan_names_with_seed' + str(args.random_seed) + '.npy', s4gan_names)
-  
   if args.labeled_ratio is None:
     trainloader = data.DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, num_workers = 0, pin_memory = True)
     trainloader_gt = data.DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, num_workers = 0, pin_memory = True)
@@ -310,15 +296,9 @@ def main():
     train_remain_sampler = data.sampler.SubsetRandomSampler(remaining_ids)
     train_gt_sampler = data.sampler.SubsetRandomSampler(active_ids)
     
-    trainloader = data.DataLoader(train_dataset,
-                                  batch_size = args.batch_size, sampler = train_sampler, num_workers = 0,
-                                  pin_memory = True)
-    trainloader_remain = data.DataLoader(train_dataset,
-                                         batch_size = args.batch_size, sampler = train_remain_sampler, num_workers = 0,
-                                         pin_memory = True)
-    trainloader_gt = data.DataLoader(train_dataset,
-                                     batch_size = args.batch_size, sampler = train_gt_sampler, num_workers = 0,
-                                     pin_memory = True)
+    trainloader = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_sampler, num_workers = 0, pin_memory = True)
+    trainloader_remain = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_remain_sampler, num_workers = 0, pin_memory = True)
+    trainloader_gt = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_gt_sampler, num_workers = 0, pin_memory = True)
 
 
   else:
@@ -327,19 +307,12 @@ def main():
     np.random.shuffle(train_ids)
     
     train_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
-    train_remain_sampler = data.sampler.SubsetRandomSampler(
-      train_ids[partial_size:])
+    train_remain_sampler = data.sampler.SubsetRandomSampler(train_ids[partial_size:])
     train_gt_sampler = data.sampler.SubsetRandomSampler(train_ids[:partial_size])
     
-    trainloader = data.DataLoader(train_dataset,
-                                  batch_size = args.batch_size, sampler = train_sampler, num_workers = 0,
-                                  pin_memory = True)
-    trainloader_remain = data.DataLoader(train_dataset,
-                                         batch_size = args.batch_size, sampler = train_remain_sampler, num_workers = 0,
-                                         pin_memory = True)
-    trainloader_gt = data.DataLoader(train_dataset,
-                                     batch_size = args.batch_size, sampler = train_gt_sampler, num_workers = 0,
-                                     pin_memory = True)
+    trainloader = data.DataLoader(train_dataset, batch_size = args.batch_size, sampler = train_sampler, num_workers = 0, pin_memory = True)
+    trainloader_remain = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_remain_sampler, num_workers = 0,pin_memory = True)
+    trainloader_gt = data.DataLoader(train_dataset,batch_size = args.batch_size, sampler = train_gt_sampler, num_workers = 0,pin_memory = True)
     
     trainloader_remain_iter = iter(trainloader_remain)
     
@@ -442,17 +415,17 @@ def main():
     pred_sel, labels_sel, count, indexes = find_good_maps(D_out_z, pred_remain, device)
     
     # save the labels above threshold
-    
-    if labels_sel.size(0) != 0 and i_iter > args.save_after_iter:
-      for i in range(count):
-        index = indexes[i]
-        name = names[index]
-        name = name + '_iter_' + str(i_iter)
-        print(name)
-        gen_viz = labels_sel[i]
-        # label_selected = labels_sel(i,:,:)
-        filename = os.path.join(generator_viz_dir, name + ".npy")
-        np.save(filename, gen_viz.cpu().numpy())
+    if args.save_viz:
+      if labels_sel.size(0) != 0 and i_iter > args.save_after_iter:
+        for i in range(count):
+          index = indexes[i]
+          name = names[index]
+          name = name + '_iter_' + str(i_iter)
+          print(name)
+          gen_viz = labels_sel[i]
+          # label_selected = labels_sel(i,:,:)
+          filename = os.path.join(generator_viz_dir, name + ".npy")
+          np.save(filename, gen_viz.cpu().numpy())
     
     # training loss on above threshold segmentation predictions (Cross Entropy Loss)IN: 321
     
@@ -517,8 +490,7 @@ def main():
     optimizer_D.step()
     scheduler.step(epoch = i_iter)
     
-    print(
-      'iter = {0:8d}/{1:8d}, loss_ce = {2:.3f}, loss_fm = {3:.3f}, loss_S = {4:.3f}, loss_D = {5:.3f}'.format(i_iter,
+    print('iter = {0:8d}/{1:8d}, loss_ce = {2:.3f}, loss_fm = {3:.3f}, loss_S = {4:.3f}, loss_D = {5:.3f}'.format(i_iter,
                                                                                                               args.num_steps,
                                                                                                               loss_ce_value,
                                                                                                               loss_fm_value,
@@ -527,8 +499,7 @@ def main():
     if i_iter >= args.num_steps - 1:
       print('save model ...')
       torch.save(model.module.state_dict(), os.path.join(checkpoint_dir, 'checkpoint' + str(args.num_steps) + '.pth'))
-      torch.save(model_D.module.state_dict(),
-                 os.path.join(checkpoint_dir, 'checkpoint' + str(args.num_steps) + '_D.pth'))
+      torch.save(model_D.module.state_dict(),os.path.join(checkpoint_dir, 'checkpoint' + str(args.num_steps) + '_D.pth'))
       break
     
     if i_iter % args.save_pred_every == 0 and i_iter != 0:
