@@ -64,13 +64,15 @@ def get_arguments():
                       help = "Path to the directory containing the PASCAL VOC dataset.")
   parser.add_argument("--data-list", type = str, required = True,
                       help = "Path to the file listing the images in the dataset.")
-  parser.add_argument("--active-learning", type = bool, default = False, action = "store_true",
+  parser.add_argument("--checkpoint-dir", type = str, default='./checkpoint',
+                                         help = "checkpoint dir.")
+  parser.add_argument("--active-learning", default = False, action = "store_true",
                       help = "whether to use active learning to select labeled examples")
   parser.add_argument("--active_image_list_path", type = str, default = 'default',
                       help = "path to active learning list of images")
   parser.add_argument("--restore-from", type = str, required = True,
                       help = "Where restore model parameters from.")
-  parser.add_argument("--save_viz", type = bool, default = False, action = "store_true",
+  parser.add_argument("--save_viz", default = False, action = "store_true",
                       help = "dataset to be used")
   parser.add_argument("--generator_viz_dir", type = str, default = './visualization')
   parser.add_argument("--num-steps", type = int, default = NUM_STEPS,
@@ -105,7 +107,7 @@ def get_arguments():
                       help = "Whether to randomly mirror the inputs during the training.")
   parser.add_argument("--random-scale", action = "store_true", default = False,
                       help = "Whether to randomly scale the inputs during the training.")
-  parser.add_argument("--cuda", type = bool, default = True, action = "store_true", help = "choose gpu device.")
+  parser.add_argument("--cuda",  default = True, action = "store_true", help = "choose gpu device.")
 
   return parser.parse_args()
 

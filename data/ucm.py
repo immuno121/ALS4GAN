@@ -58,7 +58,6 @@ class UCMDataSet(data.Dataset):
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], -1)
         image = cv2.resize(image, (256,256), interpolation=cv2.INTER_CUBIC)
-     
         if self.module == 's4gan':
             label = np.asarray(Image.open(datafiles["label"]), dtype=np.int32)
         else:

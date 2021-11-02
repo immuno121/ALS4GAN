@@ -142,8 +142,6 @@ class ImageClassifier(nn.Module):
 
 model = ImageClassifier()
 
-#Model Callbacks
-lrscheduler = LRScheduler(policy='StepLR', step_size=7, gamma=0.1)
 
 #Define Neural Net Classifier
 net = NeuralNetClassifier(
@@ -177,7 +175,7 @@ n_queries  = target/query_samples_per_iter
 target = math.ceil(float(args.labeled_ratio) * N_total)
 print("target = ", target)
 
-initial_pool_size = args.alpha * target
+initial_pool_size = int(args.alpha * target)
 print("Initial pool size = ", initial_pool_size)
 
 query_samples_per_iter = int(np.ceil(args.beta*initial_pool_size))

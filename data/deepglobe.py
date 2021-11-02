@@ -26,10 +26,10 @@ class DeepGlobeDataSet(data.Dataset):
         
 
         for name in self.img_ids:
-            img_file = osp.join(self.root, "DeepGlobe_Images/%s.tif" % name)
+            img_file = osp.join(self.root, "DeepGlobe_Images/%s_sat.jpg" % name)
             
             if self.module == 's4gan':
-                label_file = osp.join(self.root, "DeepGlobe_Labels/%s.png" % name)
+                label_file = osp.join(self.root, "DeepGlobe_Labels/%s_mask.png" % name)
             else:
                 class_id = self.class_map[name]
                 label_file = self.class_mappings[class_id]
@@ -56,7 +56,7 @@ class DeepGlobeDataSet(data.Dataset):
     def get_deepglobe_labels(self):
         """Load the mapping that associates pascal classes with label colors
         Returns:
-            np.ndarray with dimensions (7, 3)
+            np.ndarray with dimensions (5, 3)
         """
 
         return np.asarray(
@@ -105,6 +105,12 @@ class DeepGlobeDataSet(data.Dataset):
             image, label = self.generate_scale_label(image, label)
         image = np.asarray(image, np.float32)
         image -= self.mean
+        
+        
+        
+        
+        
+        
         image = image.transpose((2, 0, 1))
 
         if self.is_mirror:
