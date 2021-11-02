@@ -3,4 +3,4 @@ This repository contains code for the paper: Active Learning for Improved Semi S
 
 This repo is under active development. 
 
-The final code will be ready by Oct 30, 2021.
+The final code will be ready by Nov 10, 2021.
