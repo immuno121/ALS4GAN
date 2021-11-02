@@ -105,12 +105,37 @@ class DeepGlobeDataSet(data.Dataset):
             image, label = self.generate_scale_label(image, label)
         image = np.asarray(image, np.float32)
         image -= self.mean
-        
-        
-        
-        
-        
-        
+
+        if self.module == 's4gan':
+            img_h, img_w = label.shape
+        else:
+            img_h = image.shape[0]
+            img_w = image.shape[1]
+
+        pad_h = max(self.crop_h - img_h, 0)
+        pad_w = max(self.crop_w - img_w, 0)
+        if pad_h > 0 or pad_w > 0:
+            img_pad = cv2.copyMakeBorder(image, 0, pad_h, 0,
+                                         pad_w, cv2.BORDER_CONSTANT,
+                                         value = (0.0, 0.0, 0.0))
+    
+            if self.module == 's4gan':
+                label_pad = cv2.copyMakeBorder(label, 0, pad_h, 0,
+                                               pad_w, cv2.BORDER_CONSTANT,
+                                               value = (self.ignore_label,))
+            else:
+                label_pad = label
+        else:
+            img_pad, label_pad = image, label
+
+        img_h, img_w = img_pad.shape[0], img_pad.shape[1]
+        h_off = random.randint(0, img_h - self.crop_h)
+        w_off = random.randint(0, img_w - self.crop_w)
+        image = np.asarray(img_pad[h_off: h_off + self.crop_h, w_off: w_off + self.crop_w], np.float32)
+
+        if self.module == 's4gan':
+            label = np.asarray(label_pad[h_off: h_off + self.crop_h, w_off: w_off + self.crop_w], np.float32)
+        image = image[:, :, ::-1]  # change to BGR
         image = image.transpose((2, 0, 1))
 
         if self.is_mirror:
