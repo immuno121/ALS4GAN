@@ -66,8 +66,6 @@ def get_arguments():
                         help = "alpha for initial pool")
     parser.add_argument("--beta", type = float, default = 0.5,
                         help = "beta for number of images to learn on")
-    parser.add_argument("--N_total", type = int, default = 1679,
-                        help = "Total Number of samples(UCM: 1679, DeepGlobe: 642")
     parser.add_argument("--model-name", type = str, default = "res50", help = "vgg16/res50/res101")
     parser.add_argument("--num-classes", type = int, default = 21, help = "UCM: 21, deepglobe: 6")
     parser.add_argument("--save-dir", type = str, default = './active_learning')
@@ -95,7 +93,6 @@ args = get_arguments()
 
 dataset_name = args.dataset_name
 model_name = args.model_name
-N_total = args.N_total
 num_classes = args.num_classes
 
 

@@ -14,7 +14,7 @@ from torch.autograd import Variable
 from model import *
 from model.discriminator import s4GAN_discriminator
 
-from data.ucm_dataset import UCMDataSet
+from data.ucm import UCMDataSet
 from data.deepglobe import DeepGlobeDataSet
 
 from utils.loss import CrossEntropy2d
