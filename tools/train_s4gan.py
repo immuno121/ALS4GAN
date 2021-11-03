@@ -214,7 +214,7 @@ def get_params(model, key):
           yield m[1].bias
 
 def main():
-  dataset_name = args.dataset_name
+  dataset_name = args.dataset
   num_classes = args.num_classes
   
   if args.alpha < 0 or args.alpha > 1:
@@ -265,11 +265,11 @@ def main():
   model_D.train()
   
   
-  if args.dataset == 'ucm':
+  if dataset_name == 'ucm':
     train_dataset = UCMDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size,
                                scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
   
-  elif args.dataset == 'deepglobe':
+  elif dataset_name == 'deepglobe':
     train_dataset = DeepGlobeDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size,
                                      scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
   else:
