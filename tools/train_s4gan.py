@@ -67,6 +67,8 @@ def get_arguments():
                                          help = "checkpoint dir.")
   parser.add_argument("--active-learning", default = False, action = "store_true",
                       help = "whether to use active learning to select labeled examples")
+  parser.add_argument("--restore-from", default = str, action = "./checkpoint_final.pth",
+                      help = "restore from checkpoint")
   parser.add_argument("--active_image_list_path", type = str, default = 'default',
                       help = "path to active learning list of images")
   parser.add_argument("--save_viz", default = False, action = "store_true",
