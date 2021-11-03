@@ -105,12 +105,10 @@ if dataset_name=='UCM':
     if num_classes!=21:
         raise ValueError('number of classes should be equal to 21 when dataset=UCM')   
     N_total = 1679
-    names_array = ['agricultural', 'airplane', 'baseballdiamond', 'beach', 'buildings', 'chapparal', 'denseresidential','forest', 'freeway', 'golfcourse', 'harbor', 'intersection', 'mediumresidential', 'mobilehomepark', 'overpass', 'parkinglot', 'river', 'runway', 'sparseresidential', 'storagetanks','tenniscourt']
 elif dataset_name=="deepglobe":
     if num_classes!=6:
         raise ValueError('number of classes should be equal to 6 when dataset=DeepGlobe')
     N_total = 642
-    names_array = ['urban_land','agriculture_land','rangeland','forest','water','barren']
 else:
    raise ValueError('Currently this code only supports UCM and deepglobe')
 

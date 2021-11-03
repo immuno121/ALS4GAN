@@ -37,7 +37,6 @@ LR_DECAY = 10
 WEIGHT_DECAY = 0.0005
 ITER_MAX = 20000
 MOMENTUM = 0.9
-NUM_WORKERS = 0
 RANDOM_SEED = 5000
 LAMBDA_FM = 0.1
 LAMBDA_ST = 1.0
@@ -70,8 +69,6 @@ def get_arguments():
                       help = "whether to use active learning to select labeled examples")
   parser.add_argument("--active_image_list_path", type = str, default = 'default',
                       help = "path to active learning list of images")
-  parser.add_argument("--restore-from", type = str, required = True,
-                      help = "Where restore model parameters from.")
   parser.add_argument("--save_viz", default = False, action = "store_true",
                       help = "dataset to be used")
   parser.add_argument("--generator_viz_dir", type = str, default = './visualization')
@@ -99,8 +96,6 @@ def get_arguments():
                       help = "Save summaries and checkpoint every often.")
   parser.add_argument("--weight-decay", type = float, default = WEIGHT_DECAY,
                       help = "Regularisation parameter for L2-loss.")
-  parser.add_argument("--restore-from-D", type = str, default = None,
-                      help = "Where restore model parameters from.")
   parser.add_argument("--save-after-iter", type = int, default = 1000,
                       help = "save predicted maps after this iteration")
   parser.add_argument("--random-mirror", action = "store_true", default = False,
@@ -217,7 +212,23 @@ def get_params(model, key):
           yield m[1].bias
 
 def main():
-  print(args)
+  dataset_name = args.dataset_name
+  num_classes = args.num_classes
+  
+  if args.alpha < 0 or args.alpha > 1:
+    raise ValueError('alpha should be between 0 and 1')
+  if args.beta < 0 or args.beta > 1:
+    raise ValueError('beta should be between 0 and 1')
+  
+  if dataset_name == 'UCM':
+    if num_classes != 21:
+      raise ValueError('number of classes should be equal to 21 when dataset=UCM')
+  elif dataset_name == "deepglobe":
+    if num_classes != 6:
+      raise ValueError('number of classes should be equal to 6 when dataset=DeepGlobe')
+  else:
+    raise ValueError('Currently this code only supports UCM and deepglobe')
+  
   
   h, w = map(int, args.input_size.split(','))
   input_size = (h, w)
@@ -229,7 +240,7 @@ def main():
   cudnn.benchmark = True
   
   # create network
-  model = DeepLabV2_ResNet101_MSC(n_classes = args.num_classes)
+  model = DeepLabV2_ResNet101_MSC(n_classes = num_classes)
  
   # load pretrained parameters
   saved_state_dict = torch.load(args.restore_from)
@@ -247,8 +258,6 @@ def main():
   
   # init D
   model_D = s4GAN_discriminator(num_classes = args.num_classes, dataset = args.dataset)
-  if args.restore_from_D is not None:
-      model_D.load_state_dict(torch.load(args.restore_from_D))
   model_D = nn.DataParallel(model_D)
   model_D = model_D.to(device)
   model_D.train()
