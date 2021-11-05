@@ -1,38 +1,30 @@
 import argparse
-import scipy
-from scipy import ndimage
+
 import cv2
 import numpy as np
-import sys
-from collections import OrderedDict
 import os
-import pdb
 import json
+
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-import torchvision.models as models
 import torch.nn.functional as F
+
+from torch.autograd import Variable
 from torch.utils import data, model_zoo
-from utils.metric import scores
-#from model.deeplabv2 import Res_Deeplab
+
 from model import *
-#from model.deeplabv3p import Res_Deeplab
-from data.voc_dataset import VOCDataSet
+
 from data.ucm_dataset import UCMDataSet
 from data.deepglobe import DeepGlobeDataSet
-from data import get_data_path, get_loader
-import torchvision.transforms as transform
 
-from PIL import Image
-import scipy.misc
 from utils.crf import DenseCRF
+from utils.metric import scores
 
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 
-DATASET = 'ucm' # pascal_context
+DATASET = 'ucm'
 
-MODEL = 'deeplabv2' # deeeplabv2, deeplabv3p
+MODEL = 'deeplabv2'
 DATA_DIRECTORY = '../../Satellite_Images/'
 DATA_LIST_PATH = '../../Satellite_Images/ImageSets/test.txt' # subset.txt
 IGNORE_LABEL = 255
@@ -96,8 +88,6 @@ def get_arguments():
                         help="Directory to store results")
     parser.add_argument("--gpu", type=int, default=0,
                         help="choose gpu device.")
-    parser.add_argument("--with-mlmt", action="store_true",
-                        help="combine with Multi-Label Mean Teacher branch")
     parser.add_argument("--save-output-images", action="store_true",
                         help="save output images")
     parser.add_argument("--crf", action="store_true",
@@ -106,8 +96,6 @@ def get_arguments():
                         help="labeled ratio of the trained model")
     parser.add_argument("--threshold-st", type=float, default=None,
                         help="threshold st of the trained model")
-    parser.add_argument("--mlmt-file", type = str, default = MLMT_FILE,
-                        help = "Where MLMT output")
  
     
     return parser.parse_args()
@@ -186,8 +174,6 @@ def deepglobe_color_map():
         return np.asarray([[0, 255, 255], [255, 255, 0], [255, 0, 255], [0, 255, 0],
                            [0, 0, 255], [255, 255, 255], [0, 0, 0]])
 
-
-
 def color_map(N=256, normalized=False):
     def bitget(byteval, idx):
         return ((byteval & (1 << idx)) != 0)
@@ -238,25 +224,7 @@ def get_iou(args, data_list, class_num, save_path=None):
     aveJ, j_list, M = ConfM.jaccard()
 
 
-    if args.dataset == 'pascal_voc':
-        classes = np.array(('background',  # always index 0
-            'aeroplane', 'bicycle', 'bird', 'boat',
-            'bottle', 'bus', 'car', 'cat', 'chair',
-            'cow', 'diningtable', 'dog', 'horse',
-            'motorbike', 'person', 'pottedplant',
-            'sheep', 'sofa', 'train', 'tvmonitor'))
-    elif args.dataset == 'pascal_context':
-        classes = np.array(('background', 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow', 'table', 'dog', 'horse', 'motorbike', 'person',
-                'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor', 'bag', 'bed', 'bench', 'book', 'building', 'cabinet' , 'ceiling', 'cloth', 'computer', 'cup',
-                'door', 'fence', 'floor', 'flower', 'food', 'grass', 'ground', 'keyboard', 'light', 'mountain', 'mouse', 'curtain', 'platform', 'sign', 'plate',
-                'road', 'rock', 'shelves', 'sidewalk', 'sky', 'snow', 'bedclothes', 'track', 'tree', 'truck', 'wall', 'water', 'window', 'wood'))
-    elif args.dataset == 'cityscapes':
-        classes = np.array(("road", "sidewalk",
-            "building", "wall", "fence", "pole",
-            "traffic_light", "traffic_sign", "vegetation",
-            "terrain", "sky", "person", "rider",
-            "car", "truck", "bus",
-            "train", "motorcycle", "bicycle")) 
+   
     elif args.dataset == 'ucm':
         classes = np.array(('background',  # always index 0
             'airplane', 'bare_soil', 'buildings', 'cars',
@@ -300,6 +268,7 @@ def main():
 
     max_mean_iou = 0.0
     max_crf_mean_iou = 0.0
+    
     for epoch in range(start,end+1,step):        
         if not os.path.exists(args.save_dir):
             os.makedirs(args.save_dir)
@@ -307,12 +276,7 @@ def main():
         model = DeepLabV2_ResNet101_MSC(n_classes=args.num_classes)
         model.cuda()
 
-        if args.restore_from[:4] == 'http' :
-            saved_state_dict = model_zoo.load_url(args.restore_from)
-        #elif EXP_ID == "default":
-        #    print("Restoring from default")
-        #    saved_state_dict = torch.load(os.path.join(RESTORE_FROM))
-        elif args.threshold_st is not None:
+        if args.threshold_st is not None:
             print("Loading new weights")
             print(os.path.join(EXP_OUTPUT_DIR, "models", args.exp_id, "train",str(args.labeled_ratio), str(args.threshold_st) ,'checkpoint'+str(epoch)+'.pth'), 'saved weights')
             saved_state_dict = torch.load(os.path.join(EXP_OUTPUT_DIR, "models", args.exp_id, "train",str(args.labeled_ratio), str(args.threshold_st) ,'checkpoint'+str(epoch)+'.pth'))
@@ -329,12 +293,7 @@ def main():
         model.eval()
         model.cuda(gpu0)
 
-        if args.dataset == 'pascal_voc':
-            testloader = data.DataLoader(VOCDataSet(args.data_dir, args.data_list, crop_size=(320, 240), mean=IMG_MEAN, scale=False, mirror=False), 
-                                    batch_size=1, shuffle=False, pin_memory=True)
-            interp = nn.Upsample(size=(320, 240), mode='bilinear', align_corners=True)
-
-        elif args.dataset == 'deepglobe':
+        if args.dataset == 'deepglobe':
             testloader = data.DataLoader(DeepGlobeDataSet(args.data_dir, args.data_list, args.active_learning, args.labeled_ratio, args.sampling_type,  crop_size=(320, 320), mean=IMG_MEAN, scale=False, mirror=False),
                                     batch_size=1, shuffle=False, pin_memory=True)
             interp = nn.Upsample(size=(320, 320), mode='bilinear', align_corners=True)
@@ -346,38 +305,15 @@ def main():
             if args.crf:
                 testloader = data.DataLoader(UCMDataSet(args.data_dir, args.data_list, crop_size=(256, 256), mean=IMG_MEAN, scale=False, mirror=False),
                                 batch_size=1, shuffle=False, pin_memory=True)
-                interp = nn.Upsample(size=(256, 256), mode='bilinear', align_corners=True) #320, 240
+                interp = nn.Upsample(size=(256, 256), mode='bilinear', align_corners=True) #320, 240)
 
-
-        elif args.dataset == 'pascal_context':
-            input_transform = transform.Compose([transform.ToTensor(),
-                    transform.Normalize([.485, .456, .406], [.229, .224, .225])])
-            data_kwargs = {'transform': input_transform, 'base_size': 512, 'crop_size': 512}
-            data_loader = get_loader('pascal_context')
-            data_path = get_data_path('pascal_context')
-            test_dataset = data_loader(data_path, split='val', mode='val', **data_kwargs)
-            testloader = data.DataLoader(test_dataset, batch_size=1, drop_last=False, shuffle=False, num_workers=1, pin_memory=True)
-            interp = nn.Upsample(size=(512, 512), mode='bilinear', align_corners=True)
-
-        elif args.dataset == 'cityscapes':
-            data_loader = get_loader('cityscapes')
-            data_path = get_data_path('cityscapes')
-            test_dataset = data_loader( data_path, img_size=(512, 1024), is_transform=True, split='val')
-            testloader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memory=True)
-            interp = nn.Upsample(size=(512, 1024), mode='bilinear', align_corners=True)
-                    
+       
         data_list = []
         gt_list = []
         output_list = []
         crf_result_list = []
 
-
-        if args.with_mlmt:
-            mlmt_preds = np.loadtxt(args.mlmt_file, dtype = float)
-            
-            mlmt_preds[mlmt_preds>=0.2] = 1
-            mlmt_preds[mlmt_preds<0.2] = 0 
-             
+     
         for index, batch in enumerate(testloader):
             if index % 1 == 0:
                 print('%d processd'%(index))
@@ -387,23 +323,13 @@ def main():
             crf_output = output.clone().detach()
             output = interp(output).cpu().data[0].numpy()
                 
-            if args.dataset == 'pascal_voc':
-                output = output[:,:size[0],:size[1]]
-                gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
-            elif args.dataset == 'ucm':
+   
+            if args.dataset == 'ucm':
                 output = output[:,:size[0],:size[1]]
                 gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
             elif args.dataset == 'deepglobe':
                 output = output[:,:size[0],:size[1]]
                 gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
-            elif args.dataset == 'pascal_context':
-                gt = np.asarray(label[0].numpy(), dtype=np.int)
-            elif args.dataset == 'cityscapes':
-                gt = np.asarray(label[0].numpy(), dtype=np.int)
-
-            if args.with_mlmt:
-                for i in range(args.num_classes):
-                    output[i]= output[i]*mlmt_preds[index][i]
                     
             output = output.transpose(1,2,0)
             output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
@@ -419,7 +345,7 @@ def main():
             if args.crf:
                 if not os.path.exists(viz_dir_crf):
                     makedirs(viz_dir_crf)
-            #print("Visualization dst:", viz_dir)
+
             if args.crf:
                 postprocessor = DenseCRF(iter_max=CRF_ITER_MAX,
                                         pos_xy_std=CRF_POS_XY_STD,
