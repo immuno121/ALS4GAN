@@ -27,6 +27,7 @@ IMG_MEAN = np.array((104.00698793, 116.66876762, 122.67891434), dtype = np.float
 INPUT_SIZE = '320,320'
 
 #Hyperparameters
+IGNORE_LABEL = 255 
 BATCH_SIZE = 1
 NUM_STEPS = 40000
 SAVE_PRED_EVERY = 5000
@@ -51,11 +52,11 @@ def get_arguments():
   parser = argparse.ArgumentParser(description = "DeepLab-ResNet Network")
   parser.add_argument("--dataset", type = str, required = True,
                       help = "dataset to be used")
-  parser.add_argument("--labeled-ratio", type = float, required = True,
+  parser.add_argument("--labeled-ratio", type = float, default = None,
                       help = "ratio of the labeled data to full dataset")
   parser.add_argument("--threshold-st", type = float, required = True,
                       help = "threshold_st for the self-training threshold.")
-  parser.add_argument("--ignore-label", type = float, required = True,
+  parser.add_argument("--ignore-label", type = int, default=IGNORE_LABEL,
                       help = "label value to ignored for loss calculation")
   parser.add_argument("--num-classes", type = int, required = True,
                       help = "Number of classes to predict (including background).")
@@ -69,7 +70,7 @@ def get_arguments():
                       help = "whether to use active learning to select labeled examples")
   parser.add_argument("--restore-from", type = str, default = "./checkpoint_final.pth",
                       help = "restore from checkpoint")
-  parser.add_argument("--active_image_list_path", type = str, default = 'default',
+  parser.add_argument("--active-learning-images-array", type = str, default = '',
                       help = "path to active learning list of images")
   parser.add_argument("--save_viz", default = False, action = "store_true",
                       help = "dataset to be used")
@@ -217,21 +218,19 @@ def main():
   dataset_name = args.dataset
   num_classes = args.num_classes
   
-  if args.alpha < 0 or args.alpha > 1:
-    raise ValueError('alpha should be between 0 and 1')
-  if args.beta < 0 or args.beta > 1:
-    raise ValueError('beta should be between 0 and 1')
-  
-  if dataset_name == 'UCM':
+  if dataset_name == 'ucm':
     if num_classes != 21:
       raise ValueError('number of classes should be equal to 21 when dataset=UCM')
   elif dataset_name == "deepglobe":
     if num_classes != 6:
       raise ValueError('number of classes should be equal to 6 when dataset=DeepGlobe')
   else:
-    raise ValueError('Currently this code only supports UCM and deepglobe')
+    raise ValueError('Currently this code only supports ucm and deepglobe')
   
-  
+  if args.active_learning:
+      if not args.active_learning_images_array:
+          raise ValueError('Need to provide active_learning_images_array when training usinig active learning')  
+
   h, w = map(int, args.input_size.split(','))
   input_size = (h, w)
   checkpoint_dir = args.checkpoint_dir
@@ -283,7 +282,7 @@ def main():
     trainloader_remain = data.DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, num_workers = 0, pin_memory = True)
   
   elif args.active_learning:
-    active_img_names = np.load(args.active_image_list_path)
+    active_img_names = np.load(args.active_learning_images_array)
     all_img_names = [i_id.strip() for i_id in open(args.data_list)]
     active_img_names = np.array(active_img_names)
     all_img_names = np.array(all_img_names)

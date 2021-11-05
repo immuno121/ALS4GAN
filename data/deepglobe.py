@@ -87,7 +87,6 @@ class DeepGlobeDataSet(data.Dataset):
         return label_mask
           
     def __getitem__(self, index):
-        import pdb;pdb.set_trace()
         datafiles = self.files[index]
         image = cv2.imread(datafiles["img"], -1)
         image = cv2.resize(image, (320,320), interpolation=cv2.INTER_CUBIC)
