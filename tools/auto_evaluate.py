@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch.autograd import Variable
-from torch.utils import data, model_zoo
+from torch.utils import data
 
 from model import *
 
@@ -104,28 +104,6 @@ def makedirs(dirs):
     if not os.path.exists(dirs):
         os.makedirs(dirs)
 
-
-class VOCColorize(object):
-    def __init__(self, n=22):
-        self.cmap = color_map(22)
-        self.cmap = torch.from_numpy(self.cmap[:n])
-
-    def __call__(self, gray_image):
-        size = gray_image.shape
-        color_image = np.zeros((3, size[0], size[1]), dtype=np.uint8)
-
-        for label in range(0, len(self.cmap)):
-            mask = (label == gray_image)
-            color_image[0][mask] = self.cmap[label][0]
-            color_image[1][mask] = self.cmap[label][1]
-            color_image[2][mask] = self.cmap[label][2]
-
-        # handle void
-        mask = (255 == gray_image)
-        color_image[0][mask] = color_image[1][mask] = color_image[2][mask] = 255
-
-        return color_image
-
 def UCMColorize(label_mask, save_file):
         label_colours = ucm_color_map()
         r = label_mask.copy()
@@ -174,77 +152,6 @@ def deepglobe_color_map():
         return np.asarray([[0, 255, 255], [255, 255, 0], [255, 0, 255], [0, 255, 0],
                            [0, 0, 255], [255, 255, 255], [0, 0, 0]])
 
-def color_map(N=256, normalized=False):
-    def bitget(byteval, idx):
-        return ((byteval & (1 << idx)) != 0)
-
-    dtype = 'float32' if normalized else 'uint8'
-    cmap = np.zeros((N, 3), dtype=dtype)
-    for i in range(N):
-        r = g = b = 0
-        c = i
-        for j in range(8):
-            r = r | (bitget(c, 0) << 7-j)
-            g = g | (bitget(c, 1) << 7-j)
-            b = b | (bitget(c, 2) << 7-j)
-            c = c >> 3
-
-        cmap[i] = np.array([r, g, b])
-
-    cmap = cmap/255 if normalized else cmap
-    return cmap
-
-def get_label_vector(target, nclass):
-    # target is a 3D Variable BxHxW, output is 2D BxnClass
-    hist, _ = np.histogram(target, bins=nclass, range=(0, nclass-1))
-    vect = hist>0
-    vect_out = np.zeros((21,1))
-    for i in range(len(vect)):
-        if vect[i] == True:
-            vect_out[i] = 1
-        else:
-            vect_out[i] = 0
-
-    return vect_out
-
-def get_iou(args, data_list, class_num, save_path=None):
-    from multiprocessing import Pool 
-    from utils.metric import ConfusionMatrix
-
-    ConfM = ConfusionMatrix(class_num)
- 
-    f = ConfM.generateM
-    pool = Pool() 
-    m_list = pool.map(f, data_list)
-    pool.close() 
-    pool.join() 
-    for m in m_list:
-        ConfM.addM(m)
-
-    aveJ, j_list, M = ConfM.jaccard()
-
-
-   
-    elif args.dataset == 'ucm':
-        classes = np.array(('background',  # always index 0
-            'airplane', 'bare_soil', 'buildings', 'cars',
-            'chapparal', 'court', 'dock', 'field', 'grass',
-            'mobile_home', 'pavement', 'sand', 'sea',
-            'ship', 'tanks', 'trees',
-            'water'))
-
-
-    for i, iou in enumerate(j_list):
-         if j_list[i] > 0:
-            print('class {:2d} {:12} IU {:.2f}'.format(i, classes[i], j_list[i]))
-    
-    print('meanIOU: ' + str(aveJ) + '\n')
-    if save_path:
-        with open(save_path, 'w') as f:
-            for i, iou in enumerate(j_list):
-                f.write('class {:2d} {:12} IU {:.2f}'.format(i, classes[i], j_list[i]) + '\n')
-            f.write('meanIOU: ' + str(aveJ) + '\n')
-
 def crf_process(image, label, logit, size, postprocessor):
         H = size[0]
         W = size[1]
@@ -276,37 +183,24 @@ def main():
         model = DeepLabV2_ResNet101_MSC(n_classes=args.num_classes)
         model.cuda()
 
-        if args.threshold_st is not None:
-            print("Loading new weights")
-            print(os.path.join(EXP_OUTPUT_DIR, "models", args.exp_id, "train",str(args.labeled_ratio), str(args.threshold_st) ,'checkpoint'+str(epoch)+'.pth'), 'saved weights')
-            saved_state_dict = torch.load(os.path.join(EXP_OUTPUT_DIR, "models", args.exp_id, "train",str(args.labeled_ratio), str(args.threshold_st) ,'checkpoint'+str(epoch)+'.pth'))
-
-        else:
-            print("Loading old weights")
-            #saved_state_dict = torch.load(args.restore_from)
-            print(os.path.join(EXP_OUTPUT_DIR, "models", args.exp_id, "train", 'checkpoint'+str(epoch)+'.pth'), 'saved weights')
-            saved_state_dict = torch.load(os.path.join(EXP_OUTPUT_DIR, "models", args.exp_id, "train", 'checkpoint'+str(epoch)+'.pth'))
-            #print("Restoring from: ", saved_state_dict)
-        
+        saved_state_dict = torch.load(os.path.join(args.checkpoint_dir))
         model.load_state_dict(saved_state_dict)
 
         model.eval()
         model.cuda(gpu0)
 
         if args.dataset == 'deepglobe':
-            testloader = data.DataLoader(DeepGlobeDataSet(args.data_dir, args.data_list, args.active_learning, args.labeled_ratio, args.sampling_type,  crop_size=(320, 320), mean=IMG_MEAN, scale=False, mirror=False),
-                                    batch_size=1, shuffle=False, pin_memory=True)
+            dataset =DeepGlobeDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size,
+                                     scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
+            testloader = data.DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=True)
             interp = nn.Upsample(size=(320, 320), mode='bilinear', align_corners=True)
 
         elif args.dataset == 'ucm':
-            testloader = data.DataLoader(UCMDataSet(args.data_dir, args.data_list, args.active_learning, args.labeled_ratio, args.sampling_type, crop_size=(256,256), mean=IMG_MEAN, scale=False, mirror=False),
-                                    batch_size=1, shuffle=False, pin_memory=True)
-            interp = nn.Upsample(size=(256,256), mode='bilinear', align_corners=True) #320, 240 # align_corners = True
-            if args.crf:
-                testloader = data.DataLoader(UCMDataSet(args.data_dir, args.data_list, crop_size=(256, 256), mean=IMG_MEAN, scale=False, mirror=False),
-                                batch_size=1, shuffle=False, pin_memory=True)
-                interp = nn.Upsample(size=(256, 256), mode='bilinear', align_corners=True) #320, 240)
-
+          dataset = UCMDataSet(args.data_dir, args.data_list, module = 's4gan', crop_size = input_size,
+                                     scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
+          testloader = data.DataLoader(dataset, batch_size = 1, shuffle = False, pin_memory = True)
+          interp = nn.Upsample(size=(256,256), mode='bilinear', align_corners=True) #320, 240 # align_corners = True
+            
        
         data_list = []
         gt_list = []
@@ -324,28 +218,14 @@ def main():
             output = interp(output).cpu().data[0].numpy()
                 
    
-            if args.dataset == 'ucm':
-                output = output[:,:size[0],:size[1]]
-                gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
-            elif args.dataset == 'deepglobe':
-                output = output[:,:size[0],:size[1]]
-                gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
-                    
+            
+            output = output[:,:size[0],:size[1]]
+            gt = np.asarray(label[0].numpy()[:size[0],:size[1]], dtype=np.int)
+            
             output = output.transpose(1,2,0)
             output = np.asarray(np.argmax(output, axis=2), dtype=np.int)
-            if args.labeled_ratio is not None:
-                viz_dir = os.path.join(EXP_OUTPUT_DIR, "output_viz", args.exp_id, args.dataset_split, str(args.labeled_ratio), str(args.threshold_st))
-                viz_dir_crf = os.path.join(EXP_OUTPUT_DIR, "output_viz", args.exp_id,  args.dataset_split, "crf", str(args.labeled_ratio), str(args.threshold_st))
-            else:
-                viz_dir = os.path.join(EXP_OUTPUT_DIR, "output_viz", args.exp_id, args.dataset_split)
-                viz_dir_crf = os.path.join(EXP_OUTPUT_DIR, "output_viz", args.exp_id,  args.dataset_split, "crf")
-
-            if not os.path.exists(viz_dir):
-                makedirs(viz_dir)
-            if args.crf:
-                if not os.path.exists(viz_dir_crf):
-                    makedirs(viz_dir_crf)
-
+            
+            
             if args.crf:
                 postprocessor = DenseCRF(iter_max=CRF_ITER_MAX,
                                         pos_xy_std=CRF_POS_XY_STD,
@@ -354,22 +234,12 @@ def main():
                                         bi_rgb_std=CRF_BI_RGB_STD,
                                         bi_w=CRF_BI_W,)
                 result_crf = crf_process(image, label, crf_output, size, postprocessor)
+
             if args.save_output_images:
-                if args.dataset == 'pascal_voc' or  args.dataset == 'ucm':
-                    filename = '{}.png'.format(name[0])
-                    savefile = os.path.join(viz_dir, filename)
-                    color_file = UCMColorize(output, savefile)
-                if args.dataset == 'deepglobe':
-                    filename = '{}.png'.format(name[0])
-                    savefile = os.path.join(viz_dir, filename)
-                    color_file = DeepGlobeColorize(output, savefile)
-
-
-                if args.crf:
-                    filename = '{}.png'.format(name[0])
-                    savefile = os.path.join(viz_dir_crf, filename)
-                    color_file = UCMColorize(result_crf, savefile)
-                    
+              filename = '{}.png'.format(name[0])
+              savefile = os.path.join(args.viz_dir, filename)
+  
+              
             data_list.append([gt.flatten(), output.flatten()])
 
             gt_list.append(gt)
@@ -377,16 +247,9 @@ def main():
             if args.crf:
                 crf_result_list.append(result_crf)
 
-        if args.labeled_ratio is not None:
-            scores_dir = os.path.join(EXP_OUTPUT_DIR, "scores", args.exp_id, args.dataset_split, str(args.labeled_ratio), str(args.threshold_st))
-        else:
-            scores_dir = os.path.join(EXP_OUTPUT_DIR, "scores", args.exp_id, args.dataset_split)
-        if not os.path.exists(scores_dir):
-            makedirs(scores_dir)
-
         score = scores(gt_list, output_list, args.num_classes)
-        print(score)
-        ####################auto-evaluate logic to evaluate scores and store the best one######################################################### 
+
+        ####################auto-evaluate logic to evaluate scores and store the best one#########################################################
       
         mean_iou = score['Mean IoU']
         if mean_iou > max_mean_iou:
