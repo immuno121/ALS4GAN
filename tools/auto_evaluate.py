@@ -178,7 +178,6 @@ def main():
           interp = nn.Upsample(size=(256,256), mode='bilinear', align_corners=True) #320, 240 # align_corners = True
             
        
-        data_list = []
         gt_list = []
         output_list = []
         crf_result_list = []
