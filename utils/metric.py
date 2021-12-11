@@ -23,7 +23,6 @@ def scores(label_trues, label_preds, n_class):
     iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist))
     valid = hist.sum(axis=1) > 0  # added
     mean_iu = np.nanmean(iu[valid])
-    print(mean_iu, "mean iou inside function")
     freq = hist.sum(axis=1) / hist.sum()
     fwavacc = (freq[freq > 0] * iu[freq > 0]).sum()
     cls_iu = dict(zip(range(n_class), iu))

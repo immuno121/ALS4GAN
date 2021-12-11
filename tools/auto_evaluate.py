@@ -14,7 +14,7 @@ from torch.utils import data
 
 from model import *
 
-from data.ucm_dataset import UCMDataSet
+from data.ucm import UCMDataSet
 from data.deepglobe import DeepGlobeDataSet
 
 from utils.crf import DenseCRF
@@ -23,10 +23,12 @@ from utils.metric import scores
 IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 
 NUM_CLASSES = 18
+DATASET = 'ucm'
 SAVE_DIRECTORY = 'results'
 CHECKPOINT_DIRECTORY = './weights'
+DATA_DIRECTORY='./data'
 INPUT_SIZE = '320,320'
-
+DATA_LIST_PATH = './data/image_list.txt'
 ######### CRF ################
 CRF_ITER_MAX = 10 
 CRF_POS_XY_STD = 1
@@ -52,7 +54,7 @@ def get_arguments():
     parser.add_argument("--step-eval", type=int, default=100,
                         help="evaluation steps")
     parser.add_argument("--dataset", type=str, default=DATASET,
-                        help="dataset name pascal_voc or pascal_context")
+                        help="dataset name ucm/deepglobe")
     parser.add_argument("--data-dir", type=str, default=DATA_DIRECTORY,
                         help="Path to the directory containing the PASCAL VOC dataset.")
     parser.add_argument("--data-list", type=str, default=DATA_LIST_PATH,
@@ -67,10 +69,6 @@ def get_arguments():
                         help="choose gpu device.")
     parser.add_argument("--crf", action="store_true",
                         help="apply crf postprocessing to precomputed logits")
-    parser.add_argument("--random-mirror", action = "store_true", default = False,
-                        help = "Whether to randomly mirror the inputs during the training.")
-    parser.add_argument("--random-scale", action = "store_true", default = False,
-                        help = "Whether to randomly scale the inputs during the training.")
     parser.add_argument("--input-size", type = str, default = INPUT_SIZE,
                        help = "Comma-separated string with height and width of images.")
  
@@ -80,50 +78,6 @@ def get_arguments():
 def makedirs(dirs):
     if not os.path.exists(dirs):
         os.makedirs(dirs)
-
-def UCMColorize(label_mask, save_file):
-        label_colours = ucm_color_map()
-        r = label_mask.copy()
-        g = label_mask.copy()
-        b = label_mask.copy()
-        for ll in range(0, 18):
-            r[label_mask == ll] = label_colours[ll, 0]
-            g[label_mask == ll] = label_colours[ll, 1]
-            b[label_mask == ll] = label_colours[ll, 2]
-        rgb = np.zeros((label_mask.shape[0], label_mask.shape[1], 3))
-        rgb[:, :, 0] = b #r
-        rgb[:, :, 1] = g #g 
-        rgb[:, :, 2] = r #b
-
-        return rgb
-
-def ucm_color_map():
-        return np.asarray([[0, 0, 0], [166, 202, 240], [128, 128, 0], [0, 0, 128],
-                           [255, 0, 0], [0, 128, 0], [128, 0, 0], [255, 233, 233],
-                           [160, 160, 164], [0, 128, 128], [90, 87, 255], [255, 255, 0],
-                           [255, 192, 0], [0, 0, 255], [255, 0, 192], [128, 0, 128],
-                           [0, 255, 0], [0, 255, 255]])
-
-
-def DeepGlobeColorize(label_mask, save_file):
-        label_colours = deepglobe_color_map()
-        r = label_mask.copy()
-        g = label_mask.copy()
-        b = label_mask.copy()
-        for ll in range(0, 7):
-            r[label_mask == ll] = label_colours[ll, 0]
-            g[label_mask == ll] = label_colours[ll, 1]
-            b[label_mask == ll] = label_colours[ll, 2]
-        rgb = np.zeros((label_mask.shape[0], label_mask.shape[1], 3))
-        rgb[:, :, 0] = r
-        rgb[:, :, 1] = g 
-        rgb[:, :, 2] = b 
-        
-        return rgb
-
-def deepglobe_color_map():
-        return np.asarray([[0, 255, 255], [255, 255, 0], [255, 0, 255], [0, 255, 0],
-                           [0, 0, 255], [255, 255, 255], [0, 0, 0]])
 
 def crf_process(image, label, logit, size, postprocessor):
         H = size[0]
@@ -151,42 +105,40 @@ def main():
     
     h, w = map(int, args.input_size.split(','))
     input_size = (h, w)
+   
+    if not os.path.exists(args.save_dir):
+        os.makedirs(args.save_dir)
     
     for epoch in range(start, end+1, step):
-        if not os.path.exists(args.save_dir):
-            os.makedirs(args.save_dir)
 
         model = DeepLabV2_ResNet101_MSC(n_classes=args.num_classes)
         model.cuda()
 
-        saved_state_dict = torch.load(os.path.join(args.checkpoint_dir))
+        saved_state_dict = torch.load(os.path.join(args.checkpoint_dir, 'checkpoint'+str(epoch)+'.pth'))
         model.load_state_dict(saved_state_dict)
 
         model.eval()
         model.cuda(gpu0)
 
         if args.dataset == 'deepglobe':
-            dataset =DeepGlobeDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size,
-                                     scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
+            dataset =DeepGlobeDataSet(args.data_dir, args.data_list, module='s4gan', crop_size = input_size)
             testloader = data.DataLoader(dataset, batch_size=1, shuffle=False, pin_memory=True)
             interp = nn.Upsample(size=(320, 320), mode='bilinear', align_corners=True)
 
         elif args.dataset == 'ucm':
-          dataset = UCMDataSet(args.data_dir, args.data_list, module = 's4gan', crop_size = input_size,
-                                     scale = args.random_scale, mirror = args.random_mirror, mean = IMG_MEAN)
+          dataset = UCMDataSet(args.data_dir, args.data_list, module = 's4gan', crop_size = input_size)
           testloader = data.DataLoader(dataset, batch_size = 1, shuffle = False, pin_memory = True)
-          interp = nn.Upsample(size=(256,256), mode='bilinear', align_corners=True) #320, 240 # align_corners = True
+          interp = nn.Upsample(size=(256,256), mode='bilinear', align_corners=True)
             
        
         gt_list = []
         output_list = []
         crf_result_list = []
 
-     
         for index, batch in enumerate(testloader):
           
-            if index % 1 == 0:
-                print('%d processd'%(index))
+            if index % 100 == 0:
+                print('%d processed'%(index))
             image, label, size, name, _ = batch
             size = size[0]
             output = model(Variable(image, volatile=True).cuda(gpu0))

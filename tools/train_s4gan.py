@@ -219,7 +219,7 @@ def main():
   num_classes = args.num_classes
   
   if dataset_name == 'ucm':
-    if num_classes != 21:
+    if num_classes != 18:
       raise ValueError('number of classes should be equal to 21 when dataset=UCM')
   elif dataset_name == "deepglobe":
     if num_classes != 6:

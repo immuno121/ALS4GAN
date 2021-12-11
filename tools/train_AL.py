@@ -95,7 +95,6 @@ dataset_name = args.dataset_name
 model_name = args.model_name
 num_classes = args.num_classes
 
-
 if args.alpha<0 or args.alpha>1:
     raise ValueError('alpha should be between 0 and 1')
 if args.beta<0 or args.beta>1:
@@ -247,8 +246,9 @@ for idx in range(n_queries):
 names_arr = np.array(names[:target])
 prediction_prob_arr = np.array(prediction_probabilities[:target])
 
-names_file = os.path.join(args.save_dir, args.query_strategy + '_names_'+ args.labeled_ratio + '_'+ args.alpha + '_' + args.beta + '.npy')
-probs_file = os.path.join(args.save_dir, args.query_strategy + '_probs_'+ args.labeled_ratio + '_'+ args.alpha + '_' + args.beta + '.npy')
+makedirs(os.path.join(args.save_dir, args.dataset_name))
+names_file = os.path.join(args.save_dir, args.dataset_name, args.query_strategy + '_names_'+ str(args.labeled_ratio) + '_'+ str(args.alpha) + '_' + str(args.beta) + '.npy')
+probs_file = os.path.join(args.save_dir, args.dataset_name,  args.query_strategy + '_probs_'+ str(args.labeled_ratio) + '_'+ str(args.alpha) + '_' + str(args.beta) + '.npy')
 
 np.save(names_file, names_arr) 
 np.save(probs_file, prediction_prob_arr)    
