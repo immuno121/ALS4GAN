@@ -220,5 +220,3 @@ dependencies:
     - websocket-client==0.57.0
     - wrapt==1.12.1
     - yacs==0.1.8
-prefix: /gpfs/loomis/project/vazquez/dg777/conda_envs/mfmo-pytorch
-
