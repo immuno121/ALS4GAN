@@ -10,3 +10,9 @@ Remote sensing data is crucial for applications ranging from monitoring forest f
 Create a conda enviroment using the provided requirements.yaml file
 
 `conda env create --file=requirements.yaml` 
+
+## Data Peparation
+
+### UCM
+
+### DeepGlobe
