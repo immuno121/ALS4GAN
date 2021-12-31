@@ -6,3 +6,7 @@ Remote sensing data is crucial for applications ranging from monitoring forest f
 
 ![Network Architecture](assets/architecture_diagram.png)
 
+## Pre-requisites
+Create a conda enviroment using the provided requirements.yaml file
+
+`conda env create --file=requirements.yaml` 
