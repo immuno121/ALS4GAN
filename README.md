@@ -15,4 +15,15 @@ Create a conda enviroment using the provided requirements.yaml file
 
 ### UCM
 
+
 ### DeepGlobe
+
+## Training and Testing
+
+### Training and Testing on UC Merced Landuse Classification Dataset
+
+###  Training and Testing on DeepGlobe LandCover Dataset
+
+## Acknowledgements
+
+## Citation
