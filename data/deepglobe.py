@@ -21,7 +21,7 @@ class DeepGlobeDataSet(data.Dataset):
         self.img_ids = [i_id.strip() for i_id in open(list_path)]
         self.files = []    
         
-        self.class_map = json.load(open('/home/dg777/project/Satellite_Images/DeepGlobeImageSets/class_map.json','r'))
+        self.class_map = json.load(open('class_map.json','r'))
         self.class_mappings = {'urban_land':0,'agriculture_land':1,'rangeland':2,'forest_land':3,'water':4,'barren_land':5}    
         
 
