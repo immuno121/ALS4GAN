@@ -15,12 +15,13 @@ Create a conda enviroment using the provided requirements.yaml file
 
 ### UC Merced Land Use Classification Dataset
 
-- Download the images and classification labels for the UC Merced Land Cover Classification Dataset [here](http://weegee.vision.ucmerced.edu/datasets/landuse.html)
-- Download the semantic segmentation labels for the UC Merced Land Cover Classification Dataset (DLSRD Dataset) [here](https://sites.google.com/view/zhouwx/dataset#h.p_hQS2jYeaFpV0)
+- Download the images and classification labels for the UC Merced Land Use Classification Dataset [here](http://weegee.vision.ucmerced.edu/datasets/landuse.html)
+- Download the semantic segmentation labels for the UC Merced Land Use Classification Dataset (DLSRD Dataset) [here](https://sites.google.com/view/zhouwx/dataset#h.p_hQS2jYeaFpV0)
 
 ### DeepGlobe Land Cover Classification Dataset
 
 - Download the images and semantic segmentation labels for the DeepGlobe Land Cover Classification Dataset [here](http://deepglobe.org/)
+- Download the JSON file with the image classification labels for the DeepGlobe Land Cover Classification Dataset [here](https://drive.google.com/file/d/1yRN8fbr2X4CU_W9hzGCM9lTSqD_2kVNK/view?usp=sharing)
 
 ## Training and Testing
 
